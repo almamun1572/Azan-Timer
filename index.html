@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azan Timer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'SF Pro Display', sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #F5F5F7;
+            color: #1C1C1E;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: auto;
+        }
+        .status {
+            font-size: 18px;
+            margin-top: 20px;
+            color: #FF9500;
+        }
+        .clock {
+            font-size: 36px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .prayer-times {
+            margin-top: 20px;
+            font-size: 16px;
+            text-align: left;
+        }
+        input[type="date"] {
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #D1D1D6;
+            font-size: 16px;
+            width: 100%;
+            text-align: center;
+            background: #FFFFFF;
+            box-shadow: inset 0px 2px 4px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Azan Timer Control</h2>
+        <p>Automatically triggers API calls before and after Azan times.</p>
+        <input type="date" id="datePicker" onchange="displayPrayerTimes()">
+        <div class="clock" id="clock">Loading time...</div>
+        <div class="status" id="status">Waiting for Azan...</div>
+        <div class="prayer-times" id="prayer-times">Loading prayer times...</div>
+    </div>
+
+    <script>
+        function updateClock() {
+            let now = new Date();
+            let hours = now.getHours() % 12 || 12;
+            let minutes = now.getMinutes().toString().padStart(2, '0');
+            let seconds = now.getSeconds().toString().padStart(2, '0');
+            let ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+            document.getElementById("clock").innerText = `${hours}:${minutes}:${seconds} ${ampm}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const prayerSchedule = [
+            {"date": 21, "Fajr": "4:49 AM", "Dhuhr": "1:11 PM", "Asr": "4:35 PM", "Maghrib": "6:18 PM", "Isha": "7:30 PM"},
+            {"date": 22, "Fajr": "4:47 AM", "Dhuhr": "1:11 PM", "Asr": "4:35 PM", "Maghrib": "6:18 PM", "Isha": "7:30 PM"},
+            {"date": 23, "Fajr": "4:46 AM", "Dhuhr": "1:11 PM", "Asr": "4:35 PM", "Maghrib": "6:18 PM", "Isha": "7:31 PM"}
+        ];
+
+        function getTodayPrayerTimes(selectedDate) {
+            let date = new Date(selectedDate).getDate();
+            return prayerSchedule.find(entry => entry.date === date) || {};
+        }
+
+        function displayPrayerTimes() {
+            let selectedDate = document.getElementById("datePicker").value;
+            if (!selectedDate) {
+                selectedDate = new Date().toISOString().split('T')[0];
+                document.getElementById("datePicker").value = selectedDate;
+            }
+            let todayPrayerTimes = getTodayPrayerTimes(selectedDate);
+            let displayText = "<strong>Prayer Times:</strong><br>";
+            ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"].forEach(prayer => {
+                if (todayPrayerTimes[prayer]) {
+                    displayText += `${prayer}: ${todayPrayerTimes[prayer]}<br>`;
+                }
+            });
+            document.getElementById("prayer-times").innerHTML = displayText;
+            scheduleAzanTriggers(todayPrayerTimes);
+        }
+
+        function scheduleAzanTriggers(prayerTimes) {
+            Object.keys(prayerTimes).forEach(prayer => {
+                if (prayer !== "date") {
+                    let timeParts = prayerTimes[prayer].split(/[: ]/);
+                    let hours = parseInt(timeParts[0]);
+                    let minutes = parseInt(timeParts[1]);
+                    let ampm = timeParts[2];
+                    if (ampm === "PM" && hours !== 12) hours += 12;
+                    if (ampm === "AM" && hours === 12) hours = 0;
+                    let azanTime = new Date();
+                    azanTime.setHours(hours, minutes, 0, 0);
+                    
+                    let beforeTime = new Date(azanTime.getTime() - (1 * 60 + 10) * 1000);
+                    let afterTime = new Date(azanTime.getTime() + (5 * 60 + 20) * 1000);
+
+                    setTimeout(() => {
+                        fetch("https://blynk.cloud/external/api/update?token=B3zGySOexKemlM6Sj_FV4w1Cw3PYPGi2&V1=1");
+                        document.getElementById("status").innerText = `${prayer} - API Triggered Before Azan`;
+                    }, beforeTime - new Date());
+                    
+                    setTimeout(() => {
+                        fetch("https://blynk.cloud/external/api/update?token=B3zGySOexKemlM6Sj_FV4w1Cw3PYPGi2&V1=0");
+                        document.getElementById("status").innerText = `${prayer} - API Triggered After Azan`;
+                    }, afterTime - new Date());
+                }
+            });
+        }
+
+        setInterval(displayPrayerTimes, 60000);
+        displayPrayerTimes();
+    </script>
+</body>
+</html>
